@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { resolve, join } from 'node:path'
 import test from 'node:test'
 import { isProjectlessDirectory } from '../runtime/projectless-chats.mjs'
@@ -239,5 +242,133 @@ test('existing projectless project spaces keep their original facts and forgotte
     )
   } finally {
     await memory.dispose()
+  }
+})
+
+test('legacy chat migration preserves recall, forgetting and undo under the real session ID', async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), 'pisper-memory-legacy-chats-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const path = join(directory, 'memory.sqlite')
+  const chats = join(directory, 'chats')
+  const chatRoot = join(chats, '2026-11-09-AAA')
+  const realProject = join(chatRoot, 'real-project')
+  const sharedChat = join(chats, '2026-11-09-BBB')
+  const renamedChat = join(chats, '2026-11-09-CCC')
+  const orphanChat = join(chats, '2026-11-09-DDD')
+  const sessionId = randomUUID()
+  const removed = { ...fact, title: '旧提醒', topic: 'old.reminder', content: '已删除的提醒' }
+  await mkdir(realProject, { recursive: true })
+  const before = new LocalMemoryRuntime({ path, cwd: chatRoot })
+  await before.init()
+  let legacyFact
+  let pinEvent
+  let movedFact
+  let moveEvent
+  let keptFacts
+  try {
+    const legacySpace = await before.ensureWorkspaceSpace(chatRoot)
+    legacyFact = before.remember({ ...fact, spaceId: legacySpace })
+    before.setPinned(legacyFact.id, true)
+    pinEvent = before
+      .listEvents({ spaceId: legacySpace })
+      .find((event) => event.action === 'pin').id
+    movedFact = before.remember({
+      title: '迁到全局的审计记录',
+      content: '历史操作的快照应能恢复原会话',
+      spaceId: legacySpace,
+    })
+    before.updateMemory(movedFact.id, { spaceId: 'global' })
+    moveEvent = before
+      .listEvents()
+      .find((event) => event.undoable && event.memoryIds.includes(movedFact.id)).id
+    before.forget(before.remember({ ...removed, spaceId: legacySpace, sessionId }).id)
+    assert.equal(
+      before.remember({ ...removed, spaceId: legacySpace, sessionId }).outcome,
+      'forgotten',
+    )
+    const renamed = before.createSpace({
+      kind: 'project',
+      rootPath: renamedChat,
+      name: 'Renamed chat',
+    })
+    keptFacts = [
+      await before.ensureWorkspaceSpace(realProject),
+      await before.ensureWorkspaceSpace(sharedChat),
+      await before.ensureWorkspaceSpace(orphanChat),
+      renamed.id,
+    ].map((spaceId) => before.remember({ ...fact, spaceId }))
+    assert.equal(legacyFact.sessionId, '')
+    const db = before.requireDb()
+    db.prepare(
+      `INSERT INTO memory_digests (id, space_id, level, window_start, window_end, text, source_ids, dirty, generated_at, session_id)
+       VALUES (?, ?, 'day', ?, ?, ?, ?, 0, ?, '')`,
+    ).run(
+      'legacy-digest',
+      legacySpace,
+      '2026-11-09T00:00:00.000Z',
+      '2026-11-10T00:00:00.000Z',
+      'legacy day digest',
+      JSON.stringify([legacyFact.id]),
+      '2026-11-10T00:00:00.000Z',
+    )
+    before.index.upsert({
+      id: 'legacy-digest',
+      kind: 'digest',
+      spaceId: legacySpace,
+      body: 'legacy day digest',
+    })
+  } finally {
+    await before.dispose()
+  }
+
+  const after = new LocalMemoryRuntime({
+    path,
+    cwd: chatRoot,
+    isProjectless: (cwd) => isProjectlessDirectory(chats, cwd),
+  })
+  await after.init({
+    sessionMeta: {
+      [sessionId]: { cwd: chatRoot },
+      projectSession: { cwd: realProject },
+      sharedSession: { cwd: sharedChat },
+      sharedFork: { cwd: sharedChat },
+      renamedSession: { cwd: renamedChat },
+    },
+  })
+  try {
+    const merged = after.getMemory(legacyFact.id)
+    assert.equal(merged.spaceId, 'chats')
+    assert.equal(merged.sessionId, sessionId)
+    assert.equal(after.getSpace(legacyFact.spaceId), null)
+    const recall = (id) => after.relevantContext(query, chatRoot, 4, { sessionId: id })
+    assert.deepEqual(
+      (await recall(sessionId)).memories.map((item) => item.id),
+      [merged.id],
+    )
+    assert.deepEqual((await recall('other-session')).memories, [])
+    for (const kept of keptFacts) assert.equal(after.getMemory(kept.id).spaceId, kept.spaceId)
+    const db = after.requireDb()
+    assert.equal(
+      db.prepare("SELECT 1 FROM memory_docs WHERE doc_id = 'legacy-digest'").get(),
+      undefined,
+    )
+    assert.equal(after.remember({ ...removed, spaceId: 'chats', sessionId }).outcome, 'forgotten')
+    assert.equal(
+      after.remember({ ...removed, spaceId: 'chats', sessionId: 'other-session' }).outcome,
+      'added',
+    )
+    assert.equal(
+      after.listEvents({ spaceId: 'chats' }).some((event) => event.id === pinEvent),
+      true,
+    )
+    assert.deepEqual(after.undoEvent(pinEvent).memoryIds, [merged.id])
+    assert.equal(after.getMemory(merged.id).pinned, false)
+    assert.equal(after.getMemory(merged.id).spaceId, 'chats')
+    assert.equal(after.getMemory(movedFact.id).spaceId, 'global')
+    assert.deepEqual(after.undoEvent(moveEvent).memoryIds, [movedFact.id])
+    assert.equal(after.getMemory(movedFact.id).spaceId, 'chats')
+    assert.equal(after.getMemory(movedFact.id).sessionId, sessionId)
+  } finally {
+    await after.dispose()
   }
 })

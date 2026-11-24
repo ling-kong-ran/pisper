@@ -275,11 +275,11 @@ export class LocalMemoryRuntime {
     this.getExcludedSpaceIds = null
   }
 
-  async init() {
+  async init({ sessionMeta = {} } = {}) {
     // 移动 Node 可能没有 node:sqlite；由上层能力清单跳过记忆初始化。
     if (!DatabaseSync) throw pisperError('unsupported', 'memory', 'no SQLite in this runtime')
     try {
-      await this.openDatabase()
+      await this.openDatabase(sessionMeta)
     } catch (error) {
       this.closeFailedDatabase()
       if (!isCorruptDatabaseError(error) || !this.path || this.path === ':memory:') {
@@ -293,7 +293,7 @@ export class LocalMemoryRuntime {
           this.setAsideFiles.push({ file: basename(this.path), reason: 'corrupt_database' })
       }
       try {
-        await this.openDatabase()
+        await this.openDatabase(sessionMeta)
       } catch (retryError) {
         this.closeFailedDatabase()
         this.unavailableReason = retryError
@@ -312,7 +312,7 @@ export class LocalMemoryRuntime {
     this.ftsAvailable = false
   }
 
-  async openDatabase() {
+  async openDatabase(sessionMeta) {
     this.db = new DatabaseSync(this.path)
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;')
     initializeMemorySchema(this.db, {
@@ -326,6 +326,7 @@ export class LocalMemoryRuntime {
     await this.catchUpIndex()
     await this.ensureGlobalSpace()
     await this.ensureWorkspaceSpace(this.cwd)
+    this.mergeLegacyChatSpaces(sessionMeta)
     this.cleanupRetention({ force: true })
     // 旧版本在模型不可用时仍会标为 ready；恢复为待处理后按后台预算逐批补算。
     this.db.exec(
@@ -546,6 +547,74 @@ export class LocalMemoryRuntime {
       'INSERT INTO memory_spaces (id, name, kind, root_path, root_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     ).run(id, basename(rootPath) || rootPath, 'project', rootPath, rootKey, now, now)
     return id
+  }
+
+  // 普通项目空间原本可供多个会话共享。只有目录有唯一所属会话时才迁移。
+  mergeLegacyChatSpaces(sessionMeta) {
+    const sessionsByRoot = new Map()
+    for (const [id, session] of Object.entries(sessionMeta)) {
+      if (!this.isProjectless(session?.cwd)) continue
+      const key = canonicalProjectPath(session.cwd)
+      sessionsByRoot.set(key, sessionsByRoot.has(key) ? '' : id)
+    }
+    if (!sessionsByRoot.size) return
+    this.transaction((db) => {
+      const spaces = db
+        .prepare("SELECT id, name, root_path, root_key FROM memory_spaces WHERE kind = 'project'")
+        .all()
+      const shared = db.prepare(`
+        SELECT 1 FROM memories WHERE space_id = $space AND session_id NOT IN ('', $session)
+        UNION ALL
+        SELECT 1 FROM memory_episodes WHERE space_id = $space AND session_id <> $session
+        LIMIT 1
+      `)
+      const eventsWithSnapshots = db.prepare(`
+        SELECT id, before_json FROM memory_events
+        WHERE EXISTS (
+          SELECT 1 FROM json_each(NULLIF(before_json, '')) WHERE json_extract(value, '$.space_id') = ?
+        )
+      `)
+      const updateSnapshot = db.prepare('UPDATE memory_events SET before_json = ? WHERE id = ?')
+      for (const space of spaces) {
+        const sessionId = sessionsByRoot.get(space.root_key)
+        if (
+          !sessionId ||
+          !this.isProjectless(space.root_path) ||
+          space.name !== basename(space.root_path)
+        )
+          continue
+        if (shared.get({ space: space.id, session: sessionId })) continue
+        const now = this.isoNow()
+        db.prepare(
+          "INSERT OR IGNORE INTO memory_spaces (id, name, kind, created_at, updated_at) VALUES ('chats', 'Projectless chats', 'chats', ?, ?)",
+        ).run(now, now)
+        db.prepare("UPDATE memories SET space_id = 'chats', session_id = ? WHERE space_id = ?").run(
+          sessionId,
+          space.id,
+        )
+        db.prepare("UPDATE memory_episodes SET space_id = 'chats' WHERE space_id = ?").run(space.id)
+        db.prepare("UPDATE memory_links SET space_id = 'chats' WHERE space_id = ?").run(space.id)
+        db.prepare(
+          "UPDATE memory_docs SET space_id = 'chats', session_id = ? WHERE space_id = ? AND kind IN ('fact', 'episode')",
+        ).run(sessionId, space.id)
+        // 撤销不能再引用即将删除的空间。
+        for (const event of eventsWithSnapshots.all(space.id)) {
+          const before = JSON.parse(event.before_json)
+          for (const snapshot of Object.values(before)) {
+            if (snapshot.space_id !== space.id) continue
+            snapshot.space_id = 'chats'
+            snapshot.session_id = sessionId
+          }
+          updateSnapshot.run(JSON.stringify(before), event.id)
+        }
+        db.prepare("UPDATE memory_events SET space_id = 'chats' WHERE space_id = ?").run(space.id)
+        // 指纹只存哈希，无法重算。将原空间的遗忘范围归到已确认的会话。
+        writeMemoryMeta(db, `forgotten_scope:${sessionId}`, space.id)
+        // chats 只生成会话摘要。旧的项目派生数据和索引一并移除。
+        this.index.removeSpace(space.id)
+        db.prepare('DELETE FROM memory_spaces WHERE id = ?').run(space.id)
+      }
+    })
   }
 
   // Bot 的记忆是一个独立空间，只由运行时按 botForSession 决定谁能访问，不出现在记忆页。
@@ -928,10 +997,21 @@ export class LocalMemoryRuntime {
     if (!this.getSpace(spaceId)) throw pisperError('not_found', 'memory', 'space')
     const db = this.requireDb()
     const fingerprint = this.forgetFingerprint(spaceId, content, sessionId)
+    const originalScope = spaceId === 'chats' && readMemoryMeta(db, `forgotten_scope:${sessionId}`)
+    const originalFingerprint = originalScope
+      ? this.forgetFingerprint(originalScope, content)
+      : null
     // 用户亲手再加一次，说明又想记住了：解除指纹。自动抽取到的一律丢弃。
     if (input.ignoreForgotten === true)
-      db.prepare('DELETE FROM memory_forgotten WHERE fingerprint = ?').run(fingerprint)
-    else if (db.prepare('SELECT 1 FROM memory_forgotten WHERE fingerprint = ?').get(fingerprint))
+      db.prepare('DELETE FROM memory_forgotten WHERE fingerprint IN (?, ?)').run(
+        fingerprint,
+        originalFingerprint,
+      )
+    else if (
+      db
+        .prepare('SELECT 1 FROM memory_forgotten WHERE fingerprint IN (?, ?)')
+        .get(fingerprint, originalFingerprint)
+    )
       return { id: '', spaceId, title, content, status: 'forgotten', outcome: 'forgotten' }
     const type = MEMORY_TYPES.has(input.type) ? input.type : 'concept'
     const sourceType = cleanText(input.sourceType || 'manual', 40)
@@ -994,6 +1074,8 @@ export class LocalMemoryRuntime {
     )
     const id = cleanText(input.id, 180) || randomUUID()
     const superseded = blockedBy ? [] : prior
+    const sourcePath = safeText(input.sourcePath, 1000)
+    const cwd = safeText(input.cwd, 1000)
     this.transaction(() => {
       db.prepare(
         `
@@ -1013,9 +1095,9 @@ export class LocalMemoryRuntime {
         identityKey,
         sourceType,
         safeText(input.sourceId, 180),
-        safeText(input.sourcePath, 1000),
+        sourcePath,
         sessionId,
-        safeText(input.cwd, 1000),
+        cwd,
         safeText(input.evidence, 2000),
         safeText(input.sourceTimestamp, 80),
         Math.min(1, Math.max(0, Number(input.importance ?? 0.5))),
@@ -1029,7 +1111,7 @@ export class LocalMemoryRuntime {
         evidenceRole,
         tainted ? 1 : 0,
         cleanText(input.episodeId, 180),
-        computeAnchorHash(input.sourcePath, input.cwd),
+        computeAnchorHash(sourcePath, cwd),
         blockedBy ? now : null,
         blockedBy ? 'lower_authority_conflict' : '',
         // 已归档的、被污染的不参与对账：它们不能影响现有事实。

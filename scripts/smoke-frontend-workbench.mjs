@@ -527,16 +527,19 @@ try {
   assert.ok(Number(await splitter.getAttribute('aria-valuenow')) > beforeWidth)
   await splitter.press('ArrowRight')
   assert.equal(Number(await splitter.getAttribute('aria-valuenow')), beforeWidth)
+  // 分隔条右半侧与检查器重叠，指针从可命中的左半侧开始拖动。
+  const resizeHandle = { x: 2, y: 40 }
+  await splitter.hover({ position: resizeHandle })
   const handle = await splitter.boundingBox()
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
   await page.mouse.down()
-  await page.mouse.move(handle.x - 28, handle.y + handle.height / 2)
+  await page.mouse.move(handle.x - 28, handle.y + resizeHandle.y)
   await page.mouse.up()
-  assert.ok(
-    Number(await splitter.getAttribute('aria-valuenow')) > beforeWidth,
-    'pointer resize widens the inspector',
+  await page.waitForFunction(
+    (width) =>
+      Number(document.querySelector('[role="separator"]')?.getAttribute('aria-valuenow')) > width,
+    beforeWidth,
   )
-  await splitter.dblclick()
+  await splitter.dblclick({ position: resizeHandle })
   assert.equal(Number(await splitter.getAttribute('aria-valuenow')), defaultInspectorWidth)
   const addressInput = pane.locator('[data-inspector-preview] form input')
   await addressInput.fill('https://example.invalid/kept-as-draft')

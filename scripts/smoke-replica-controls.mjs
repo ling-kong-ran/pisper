@@ -78,6 +78,8 @@ export async function verifyReplicaControls() {
     })
     const page = await browser.newPage({ viewport: { width: 900, height: 560 } })
     page.setDefaultTimeout(5000)
+    // 首次导航还要等待 Vite 预构建，交互仍使用更短的断言期限。
+    page.setDefaultNavigationTimeout(30_000)
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/__controls`)

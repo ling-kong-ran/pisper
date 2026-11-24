@@ -915,7 +915,7 @@ try {
   const boundState = JSON.parse(await readFile(join(dataDir, 'custom-ui-state.json'), 'utf8'))
   assert.equal(JSON.stringify(boundState).includes(boundId), true, 'bound session recorded')
   await agentPage.locator('[data-component-agent-status="running"]').waitFor({ timeout: 30_000 })
-  // 离开工作室（侧栏从窄轨回到展开），会话在侧栏“运行中”分组里，标题是“生成组件 · 原生卡片”。
+  // 离开工作室后按绑定会话 ID 查找侧栏行，展示标题遵循自动命名的 20 码点上限。
   await agentPage.evaluate(() => {
     window.location.hash = '#/more'
   })
@@ -923,7 +923,7 @@ try {
     `[data-sidebar-group="running"] [data-sidebar-row="${boundId}"][data-sidebar-group-row="running"]`,
   )
   await runningRow.waitFor({ timeout: 30_000 })
-  assert.match(await runningRow.textContent(), /Build component · 原生卡片/)
+  assert.match(await runningRow.textContent(), /Build component · 原生…/)
   await agentPage.screenshot({ path: join(output, 'agent-running-sidebar.png') })
   report.checks.push(
     'Prompt card: ⌘↵ hands the prompt to a bound “Build component · <name>” session created by the Runtime; the message starts with “/skill:pisper-component ” (space), the session is recorded and shows under Running in the sidebar',

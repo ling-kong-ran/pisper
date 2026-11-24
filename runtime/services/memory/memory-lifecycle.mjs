@@ -2,8 +2,8 @@
 // 除用户删除外（见 local-memory-runtime.mjs 的 forget），这里的每一步都写 memory_events，事后能看、能撤销。
 // 全部不调 LLM，放在读路径和启动路径上也不贵。
 import { createHash } from 'node:crypto'
-import { readFileSync, statSync } from 'node:fs'
-import { isAbsolute, resolve } from 'node:path'
+import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { decayFactor, factTimestamp } from './memory-retrieval.mjs'
 
 const DAY_MS = 86_400_000
@@ -27,6 +27,7 @@ export const authorityTier = (authority) => (authority >= 90 ? 3 : authority >= 
 // 撤销要能完整写回的字段。不含 id、时间戳和索引状态。
 const EVENT_SNAPSHOT_FIELDS = [
   'space_id',
+  'session_id',
   'status',
   'superseded_by',
   'superseded_at',
@@ -58,13 +59,20 @@ export function memorySnapshot(row) {
   return Object.fromEntries(EVENT_SNAPSHOT_FIELDS.map((field) => [field, row[field] ?? null]))
 }
 
-// 只看普通文件：FIFO 和设备文件一读就可能挂住。
+function isWorkspaceFile(root, file) {
+  const child = relative(root, file)
+  return Boolean(child) && child !== '..' && !child.startsWith(`..${sep}`) && !isAbsolute(child)
+}
+
+// 锚点是工作区内的普通文件。每次校验都重新解析链接，避免链接目标变化后越界。
 function inspectAnchor(sourcePath, cwd) {
-  const value = String(sourcePath || '')
-  if (!value) return { state: 'unknown', hash: '' }
-  if (!isAbsolute(value) && !cwd) return { state: 'unknown', hash: '' }
-  const path = isAbsolute(value) ? value : resolve(String(cwd), value)
+  if (!sourcePath || !cwd) return { state: 'unknown', hash: '' }
+  const root = resolve(cwd)
+  const target = resolve(root, sourcePath)
+  if (!isWorkspaceFile(root, target)) return { state: 'missing', hash: '' }
   try {
+    const path = realpathSync.native(target)
+    if (!isWorkspaceFile(realpathSync.native(root), path)) return { state: 'missing', hash: '' }
     const stat = statSync(path)
     if (!stat.isFile()) return { state: 'missing', hash: '' }
     // 记录锚点时只收 2MB 以内的文件，现在超了说明内容肯定变过。

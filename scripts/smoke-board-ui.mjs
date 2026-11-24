@@ -339,8 +339,11 @@ try {
     const segment = (id) =>
       filters.getByRole('radio', { name: new RegExp(`^${SEGMENT_LABELS[id]}`) })
     await waitForFilterCounts(page, { all: 7, attention: 3, running: 2, done: 2 })
+    // 主区和侧栏分别加载会话，主区就绪时侧栏可能还在等列表请求。
+    const attentionRows = '[data-sidebar-group="attention"] [data-sidebar-row]'
+    await sidebar.locator(attentionRows).nth(2).waitFor()
     assert.equal(
-      await sidebar.locator('[data-sidebar-group="attention"] [data-sidebar-row]').count(),
+      await sidebar.locator(attentionRows).count(),
       3,
       'the sidebar keeps its session rows on this page',
     )
